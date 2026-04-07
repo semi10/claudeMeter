@@ -48,17 +48,17 @@ Existing struct members (`scr[4]`, `cur`, `btn`, etc.) are kept untouched.
    ```
    with:
    ```c
-   LCD_1IN14_Init(VERTICAL);
-   DISP_HOR_RES = 135;
-   DISP_VER_RES = 240;
+   LCD_1IN14_Init(HORIZONTAL_FLIP);
+   DISP_HOR_RES = 240;
+   DISP_VER_RES = 135;
    ```
-   This gives portrait layout (135×240 px) needed for two stacked gauges.
+   This gives landscape 270° layout (240×135 px) for two side-by-side gauges.
 
 2. **Replace `Widgets_Init()`** — remove the image demo screen; create:
    - Single screen `dat->scr[0]` with black background
-   - Top panel (135×120 px, y=0): session arc + `"Session"` title + `lbl_sp` + `lbl_sr`
-   - Bottom panel (135×120 px, y=120): weekly arc + `"Weekly"` title + `lbl_wp` + `lbl_wr`
-   - Each arc: `lv_arc_set_range(arc, 0, 100)`, value=0, sized ~90px, centered in panel
+   - Left panel (120×135 px, x=0): session arc + `"Session"` title + `lbl_sp` + `lbl_sr`
+   - Right panel (120×135 px, x=120): weekly arc + `"Weekly"` title + `lbl_wp` + `lbl_wr`
+   - Each arc: `lv_arc_set_range(arc, 0, 100)`, value=0, sized ~80px, centered in panel
    - Percentage labels (`"--"`) centered on arcs using `lv_font_montserrat_16`
    - Reset time labels (`""`) below arcs using `lv_font_montserrat_14`
    - `dat->lbl_status` — centered overlay label: `"Waiting for data"`, visible at boot
@@ -66,12 +66,22 @@ Existing struct members (`scr[4]`, `cur`, `btn`, etc.) are kept untouched.
 3. **Extend the main loop** — after `lv_task_handler()`:
    ```c
    serial_poll(dat);
-   // Check 30s timeout → show "Connection lost" on dat->lbl_status
-   if (to_ms_since_boot(get_absolute_time()) - last_rx_ms > 30000 && data_received) {
+   // Check 2min timeout → show "Connection lost" on dat->lbl_status
+   if (serial_data_received &&
+       (to_ms_since_boot(get_absolute_time()) - serial_last_rx_ms > 120000)) {
        lv_label_set_text(dat->lbl_status, "Connection lost");
        lv_obj_clear_flag(dat->lbl_status, LV_OBJ_FLAG_HIDDEN);
    }
    ```
+
+**`firmware/lib/LCD/LCD_1in14.h`** — add orientation constant:
+```c
+#define HORIZONTAL_FLIP 2
+```
+
+**`firmware/lib/LCD/LCD_1in14.c`** — add 270° rotation support in `LCD_1IN14_SetAttributes()`:
+- New `HORIZONTAL_FLIP` branch: MADCTL `0xA0` (MY+MV), dimensions swapped to 240×135
+- Window offsets: `x=40, y=52` for the flipped landscape orientation
 
 ### New files to create
 
@@ -146,7 +156,7 @@ No `CMakeLists.txt` changes needed in `examples/` — `aux_source_directory` aut
 host/
   claudemeter_host.py       — entry point (Chrome NM protocol → serial)
   serial_writer.py          — serial port wrapper with reconnect
-  claudemeter_config.json   — user config: { "com_port": "COM5" }
+  claudemeter_config.json   — user config: { "com_port": "COM3" }
   native_manifest.json      — Chrome NM manifest template
   install.py                — writes manifest + registry key (uses winreg)
   claudemeter.spec          — PyInstaller spec (onefile, include config JSON)
@@ -211,25 +221,29 @@ widget/
 ```
 
 ### `inject.js` (runs in page main world)
-- Wraps `window.fetch`; after each response, checks if `response.url` includes `/api/usage`.
-- Clones response, parses JSON, validates `five_hour` key presence.
+- Wraps `window.fetch`; after each response, checks if URL includes `usage`, `rate_limit`, or `billing`.
+- Logs all `/api/` calls for debugging (`ClaudeMeter: fetch intercepted`).
+- Clones response, parses JSON, logs response keys, validates `five_hour` key presence.
 - Extracts `sp = Math.round(data.five_hour.utilization)`, `wp = Math.round(data.seven_day.utilization)`.
 - Computes `sr`: delta from `Date.now()` to `five_hour.resets_at`, formatted as `"37m"` or `"2h 10m"`.
 - Computes `wr`: day-of-week + HH:MM from `seven_day.resets_at` local time, e.g. `"Thu 10:00"`.
 - Posts `{ type: 'CLAUDEMETER_DATA', sp, sr, wp, wr }` via `window.postMessage`.
 
 ### `content.js` (isolated world bridge)
-- Injects `inject.js` into page main world via `<script src=chrome.runtime.getURL('inject.js')>`.
+- Logs load confirmation (`ClaudeMeter: content script loaded on <url>`).
+- Injects `inject.js` into page main world via `<script src=chrome.runtime.getURL('inject.js')>` with `onload`/`onerror` logging.
 - Listens for `window.message` events with `type: 'CLAUDEMETER_DATA'`.
-- Forwards to service worker via `chrome.runtime.sendMessage({ type: 'USAGE_DATA', payload })`.
+- Logs and forwards to service worker via `chrome.runtime.sendMessage({ type: 'USAGE_DATA', payload })`.
 
 ### `service-worker.js`
 - **`port`** variable (module-level): native messaging connection.
 - **`connectNative()`**: calls `chrome.runtime.connectNative('com.example.claudemeter')`, sets `port.onDisconnect` to null `port`.
 - **Keep-alive alarm** (`'keepalive'`, `periodInMinutes: 1`): on each tick, reconnect if `port === null`.
-- **Poll alarm** (`'poll'`, `periodInMinutes: 1`): query for `claude.ai/settings/usage` tab; if none, open one with `active: false`; if found, re-execute inject script via `chrome.scripting.executeScript({ world: 'MAIN', ... })`.
-- **`onMessage`**: if `type === 'USAGE_DATA'` and port is alive, call `port.postMessage(payload)`.
-- Both alarms created on `onInstalled` and `onStartup`.
+- **Poll alarm** (`'poll'`, `periodInMinutes: 1`): calls `pollUsage()` which queries for any `claude.ai` tab; if none found, opens `claude.ai/settings/usage` as an inactive background tab (`active: false`); if found, reloads the tab via `chrome.tabs.reload()` to trigger a fresh fetch intercept.
+- **`onMessage`**: if `type === 'USAGE_DATA'` and port is alive, call `port.postMessage(payload)`. Logs all received messages for debugging.
+- Both alarms created on `onInstalled` and `onStartup`, with an immediate `pollUsage()` call after 3s delay.
+- **Initial boot**: calls `connectNative()` and `setTimeout(pollUsage, 5000)` at service worker load.
+- Debug logging throughout (`ClaudeMeter: ...` prefixed console.log at every stage).
 
 ---
 
@@ -258,11 +272,11 @@ widget/
 | Layer | Test |
 |-------|------|
 | Firmware alone | Send `{"sp":50,"sr":"37m","wp":25,"wr":"Thu 10:00"}\n` via PuTTY at 115200; expect arcs to update |
-| Timeout | Send nothing for 31s after first message; expect "Connection lost" |
+| Timeout | Send nothing for >2min after first message; expect "Connection lost" |
 | Boot | Power cycle board; expect "Waiting for data" on screen |
 | Host alone | Pipe NM-framed JSON to host stdin; verify serial output on board |
 | Extension alone | Open SW inspector; navigate to `claude.ai/settings/usage`; confirm `USAGE_DATA` logged |
-| End-to-end | Full stack: tab opens automatically, data flows, display updates within 60s |
+| End-to-end | Full stack: tab opens automatically (or background tab created), data flows, display updates within ~1min |
 
 ---
 
@@ -272,7 +286,9 @@ widget/
 |------|--------|
 | `firmware/CMakeLists.txt` | Swap stdio lines |
 | `firmware/examples/inc/LVGL_example.h` | Add 7 widget pointers to struct |
-| `firmware/examples/src/LCD_1in14_LVGL_test.c` | Change orientation, replace Widgets_Init, extend loop |
+| `firmware/lib/LCD/LCD_1in14.h` | Add `HORIZONTAL_FLIP` orientation constant |
+| `firmware/lib/LCD/LCD_1in14.c` | Add 270° rotation (MADCTL `0xA0`) and window offsets |
+| `firmware/examples/src/LCD_1in14_LVGL_test.c` | Change to HORIZONTAL_FLIP, landscape Widgets_Init, extend loop |
 | `firmware/examples/src/serial_input.c` | **New** — serial polling + JSON parsing |
 | `firmware/examples/inc/serial_input.h` | **New** — header |
 | `host/claudemeter_host.py` | **New** — NM host entry point |

@@ -37,19 +37,19 @@ extern bool serial_data_received;
 extern uint32_t serial_last_rx_ms;
 
 /********************************************************************************
-function:   Create a single arc gauge panel
-parameter:  parent - parent object, y_offset - vertical position
+function:   Create a single arc gauge panel (landscape layout)
+parameter:  parent - parent object, x_offset - horizontal position
             arc_out - pointer to store arc, pct_out - percentage label,
             reset_out - reset time label, title - panel title string
 ********************************************************************************/
-static void create_gauge_panel(lv_obj_t *parent, lv_coord_t y_offset,
+static void create_gauge_panel(lv_obj_t *parent, lv_coord_t x_offset,
                                lv_obj_t **arc_out, lv_obj_t **pct_out,
                                lv_obj_t **reset_out, const char *title)
 {
-    /* Container panel - 135x120 */
+    /* Container panel - 120x135 side by side */
     lv_obj_t *panel = lv_obj_create(parent);
-    lv_obj_set_size(panel, 135, 120);
-    lv_obj_set_pos(panel, 0, y_offset);
+    lv_obj_set_size(panel, 120, 135);
+    lv_obj_set_pos(panel, x_offset, 0);
     lv_obj_set_style_bg_color(panel, lv_color_black(), 0);
     lv_obj_set_style_border_width(panel, 0, 0);
     lv_obj_set_style_pad_all(panel, 0, 0);
@@ -65,7 +65,7 @@ static void create_gauge_panel(lv_obj_t *parent, lv_coord_t y_offset,
 
     /* Arc gauge */
     lv_obj_t *arc = lv_arc_create(panel);
-    lv_obj_set_size(arc, 90, 90);
+    lv_obj_set_size(arc, 80, 80);
     lv_arc_set_range(arc, 0, 100);
     lv_arc_set_value(arc, 0);
     lv_arc_set_bg_angles(arc, 135, 45);
@@ -75,7 +75,7 @@ static void create_gauge_panel(lv_obj_t *parent, lv_coord_t y_offset,
     lv_obj_set_style_arc_width(arc, 8, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(arc, lv_color_make(40, 40, 40), LV_PART_MAIN);
     lv_obj_set_style_arc_color(arc, lv_color_make(0, 180, 255), LV_PART_INDICATOR);
-    lv_obj_align(arc, LV_ALIGN_CENTER, 0, 8);
+    lv_obj_align(arc, LV_ALIGN_CENTER, 0, 5);
     *arc_out = arc;
 
     /* Percentage label centered on arc */
@@ -105,15 +105,15 @@ int LCD_1in14_test(void)
         return -1;
     }
 
-    /* LCD Init - portrait mode */
+    /* LCD Init - landscape 270° (HORIZONTAL_FLIP) */
     printf("ClaudeMeter starting...\r\n");
-    LCD_1IN14_Init(VERTICAL);
+    LCD_1IN14_Init(HORIZONTAL_FLIP);
     LCD_1IN14_Clear(BLACK);
 
-    /*Config parameters - portrait: 135 wide x 240 tall*/
+    /*Config parameters - landscape: 240 wide x 135 tall*/
     LCD_SetWindows = LCD_1IN14_SetWindows;
-    DISP_HOR_RES = 135;
-    DISP_VER_RES = 240;
+    DISP_HOR_RES = 240;
+    DISP_VER_RES = 135;
 
     /*Init LVGL data structure*/
     lvgl_data_struct *dat = (lvgl_data_struct *)malloc(sizeof(lvgl_data_struct));
@@ -143,7 +143,7 @@ int LCD_1in14_test(void)
 }
 
 /********************************************************************************
-function:   Initialize Widgets - ClaudeMeter dual gauge UI
+function:   Initialize Widgets - ClaudeMeter dual gauge UI (landscape)
 parameter:
 ********************************************************************************/
 static void Widgets_Init(lvgl_data_struct *dat)
@@ -152,11 +152,11 @@ static void Widgets_Init(lvgl_data_struct *dat)
     dat->scr[0] = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(dat->scr[0], lv_color_black(), 0);
 
-    /* Top panel: Session gauge (y=0) */
+    /* Left panel: Session gauge (x=0) */
     create_gauge_panel(dat->scr[0], 0,
                        &dat->arc_session, &dat->lbl_sp, &dat->lbl_sr, "Session");
 
-    /* Bottom panel: Weekly gauge (y=120) */
+    /* Right panel: Weekly gauge (x=120) */
     create_gauge_panel(dat->scr[0], 120,
                        &dat->arc_weekly, &dat->lbl_wp, &dat->lbl_wr, "Weekly");
 

@@ -12,8 +12,9 @@
 #define LCD_1IN14_WIDTH 135
 
 
-#define HORIZONTAL 1
-#define VERTICAL   0
+#define HORIZONTAL  1
+#define VERTICAL    0
+#define HORIZONTAL_FLIP 2
 
 #define LCD_1IN14_SetBacklight(Value) ; 
 

@@ -155,8 +155,12 @@ static void LCD_1IN14_SetAttributes(uint8_t Scan_dir)
         LCD_1IN14.HEIGHT	= LCD_1IN14_WIDTH;
         LCD_1IN14.WIDTH   = LCD_1IN14_HEIGHT;
         MemoryAccessReg = 0X70;
+    } else if(Scan_dir == HORIZONTAL_FLIP) {
+        LCD_1IN14.HEIGHT	= LCD_1IN14_WIDTH;
+        LCD_1IN14.WIDTH   = LCD_1IN14_HEIGHT;
+        MemoryAccessReg = 0XA0;
     } else {
-        LCD_1IN14.HEIGHT	= LCD_1IN14_HEIGHT;       
+        LCD_1IN14.HEIGHT	= LCD_1IN14_HEIGHT;
         LCD_1IN14.WIDTH   = LCD_1IN14_WIDTH;
         MemoryAccessReg = 0X00;
     }
@@ -195,6 +199,7 @@ void LCD_1IN14_SetWindows(uint16_t Xstart, uint16_t Ystart, uint16_t Xend, uint1
 {
     uint8_t x,y;
     if(LCD_1IN14.SCAN_DIR == HORIZONTAL){x=40;y=53;}
+    else if(LCD_1IN14.SCAN_DIR == HORIZONTAL_FLIP){x=40;y=52;}
     else{ x=52; y=40; }
     //set the X coordinates
     LCD_1IN14_SendCommand(0x2A);
