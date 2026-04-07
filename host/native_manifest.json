@@ -1,0 +1,7 @@
+{
+  "name": "com.example.claudemeter",
+  "description": "ClaudeMeter serial bridge",
+  "path": "C:\\ClaudeMeter\\claudemeter_host.exe",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://EXTENSION_ID/"]
+}

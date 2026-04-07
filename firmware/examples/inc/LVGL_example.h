@@ -46,6 +46,13 @@ typedef struct {
     lv_obj_t *label;      // Label
     lv_obj_t *sw_1;       // Switch 1
     lv_obj_t *sw_2;       // Switch 2
+    lv_obj_t *arc_session;
+    lv_obj_t *arc_weekly;
+    lv_obj_t *lbl_sp;     // session percentage
+    lv_obj_t *lbl_sr;     // session reset time
+    lv_obj_t *lbl_wp;     // weekly percentage
+    lv_obj_t *lbl_wr;     // weekly reset time
+    lv_obj_t *lbl_status; // "Waiting for data" / "Connection lost"
     uint16_t click_num;   // Number of button clicks
     uint16_t KEY_now;     // Current state of the button
     uint16_t KEY_old;     // Button Previous State

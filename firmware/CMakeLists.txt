@@ -53,8 +53,8 @@ add_executable(RP2350-GEEK-LVGL main.c)
 pico_set_program_name(RP2350-GEEK-LVGL  "RP2350-GEEK-LVGL")
 pico_set_program_version(RP2350-GEEK-LVGL "0.1")
 
-pico_enable_stdio_uart(RP2350-GEEK-LVGL 1)
-pico_enable_stdio_usb(RP2350-GEEK-LVGL  0)
+pico_enable_stdio_uart(RP2350-GEEK-LVGL 0)
+pico_enable_stdio_usb(RP2350-GEEK-LVGL  1)
 
 # Add the standard library to the build
 
