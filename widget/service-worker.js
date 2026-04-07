@@ -41,7 +41,11 @@ function pollUsage() {
     console.log("ClaudeMeter: found tabs", tabs?.length);
     const tab = tabs?.find((t) => t.url && t.url.startsWith("https://claude.ai"));
     if (!tab) {
-      console.log("ClaudeMeter: no suitable claude.ai tab found");
+      console.log("ClaudeMeter: no claude.ai tab found, opening background tab");
+      chrome.tabs.create({
+        url: "https://claude.ai/settings/usage",
+        active: false,
+      });
       return;
     }
     console.log("ClaudeMeter: reloading tab", tab.id, tab.url);
