@@ -128,9 +128,9 @@ int LCD_1in14_test(void)
         lv_task_handler();
         serial_poll(dat);
 
-        /* 30s timeout: show "Connection lost" if no data received recently */
+        /* 2min timeout: show "Connection lost" if no data received recently */
         if (serial_data_received &&
-            (to_ms_since_boot(get_absolute_time()) - serial_last_rx_ms > 30000)) {
+            (to_ms_since_boot(get_absolute_time()) - serial_last_rx_ms > 120000)) {
             lv_label_set_text(dat->lbl_status, "Connection lost");
             lv_obj_clear_flag(dat->lbl_status, LV_OBJ_FLAG_HIDDEN);
         }
