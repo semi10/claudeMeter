@@ -1,11 +1,13 @@
 /**
  * ClaudeMeter — fetch interceptor (runs in page main world).
- * Wraps window.fetch to capture /api/usage responses from claude.ai,
+ * Wraps window.fetch to capture usage API responses from claude.ai,
  * extracts utilization data, and posts it to the content script.
  */
 (function () {
   if (window.__claudeMeterInjected) return;
   window.__claudeMeterInjected = true;
+
+  console.log("ClaudeMeter: inject.js active, intercepting fetch calls");
 
   const originalFetch = window.fetch;
 
@@ -14,9 +16,15 @@
 
     try {
       const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
-      if (url.includes("/api/usage")) {
+      // Log all API calls to help find the right endpoint
+      if (url.includes("/api/") || url.includes("usage")) {
+        console.log("ClaudeMeter: fetch intercepted", url, response.status);
+      }
+      // Look for any response containing usage/utilization data
+      if (url.includes("usage") || url.includes("rate_limit") || url.includes("billing")) {
         const clone = response.clone();
         clone.json().then((data) => {
+          console.log("ClaudeMeter: response data keys", Object.keys(data));
           if (!data.five_hour) return;
 
           const sp = Math.round(data.five_hour.utilization || 0);

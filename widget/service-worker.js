@@ -23,34 +23,42 @@ function connectNative() {
 
 // Receive usage data from content script
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log("ClaudeMeter: onMessage received", msg);
   if (msg.type !== "USAGE_DATA") return;
 
+  console.log("ClaudeMeter: USAGE_DATA payload", msg.payload);
   if (!port) connectNative();
   if (port) {
     port.postMessage(msg.payload);
+    console.log("ClaudeMeter: sent to native host");
   }
 });
 
+// Poll: find a claude.ai tab and trigger /api/usage fetch
+function pollUsage() {
+  console.log("ClaudeMeter: polling for claude.ai tab...");
+  chrome.tabs.query({ url: "https://claude.ai/*", status: "complete" }, (tabs) => {
+    console.log("ClaudeMeter: found tabs", tabs?.length);
+    const tab = tabs?.find((t) => t.url && t.url.startsWith("https://claude.ai"));
+    if (!tab) {
+      console.log("ClaudeMeter: no suitable claude.ai tab found");
+      return;
+    }
+    console.log("ClaudeMeter: reloading tab", tab.id, tab.url);
+    chrome.tabs.reload(tab.id).catch((e) =>
+      console.warn("ClaudeMeter: tab reload failed", e.message)
+    );
+  });
+}
+
 // Alarms: keepalive (reconnect) + poll (ensure usage page is hit)
 chrome.alarms.onAlarm.addListener((alarm) => {
+  console.log("ClaudeMeter: alarm fired", alarm.name);
   if (alarm.name === "keepalive") {
     if (!port) connectNative();
   }
-
   if (alarm.name === "poll") {
-    // Find or open a claude.ai tab to trigger the fetch interceptor
-    chrome.tabs.query({ url: "https://claude.ai/*" }, (tabs) => {
-      if (tabs.length > 0) {
-        // Re-inject into first matching tab to trigger a fresh usage fetch
-        chrome.scripting.executeScript({
-          target: { tabId: tabs[0].id },
-          world: "MAIN",
-          func: () => {
-            fetch("/api/usage").catch(() => {});
-          },
-        });
-      }
-    });
+    pollUsage();
   }
 });
 
@@ -59,8 +67,17 @@ function createAlarms() {
   chrome.alarms.create("poll", { periodInMinutes: 1 });
 }
 
-chrome.runtime.onInstalled.addListener(createAlarms);
-chrome.runtime.onStartup.addListener(createAlarms);
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("ClaudeMeter: onInstalled");
+  createAlarms();
+  setTimeout(pollUsage, 3000); // Poll immediately after install
+});
+chrome.runtime.onStartup.addListener(() => {
+  console.log("ClaudeMeter: onStartup");
+  createAlarms();
+  setTimeout(pollUsage, 3000);
+});
 
-// Initial connection
+// Initial connection + immediate poll
 connectNative();
+setTimeout(pollUsage, 5000);
