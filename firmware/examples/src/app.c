@@ -27,7 +27,7 @@
 # THE SOFTWARE.
 #
 ******************************************************************************/
-#include "LCD_Test.h"
+#include "app.h"
 #include "LCD_1in14.h"
 #include "serial_input.h"
 
@@ -198,24 +198,24 @@ parameter:
 static void Widgets_Init(lvgl_data_struct *dat)
 {
     /* Single screen with black background */
-    dat->scr[0] = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(dat->scr[0], lv_color_black(), 0);
+    dat->scr = lv_obj_create(NULL);
+    lv_obj_set_style_bg_color(dat->scr, lv_color_black(), 0);
 
     /* Left panel: Session gauge (x=0) */
-    create_gauge_panel(dat->scr[0], 0,
+    create_gauge_panel(dat->scr, 0,
                        &dat->arc_session, &dat->lbl_sp, &dat->lbl_sr, "Session");
 
     /* Right panel: Weekly gauge (x=120) */
-    create_gauge_panel(dat->scr[0], 120,
+    create_gauge_panel(dat->scr, 120,
                        &dat->arc_weekly, &dat->lbl_wp, &dat->lbl_wr, "Weekly");
 
     /* Status label at bottom of screen (same level as reset time labels) */
-    dat->lbl_status = lv_label_create(dat->scr[0]);
+    dat->lbl_status = lv_label_create(dat->scr);
     lv_label_set_text(dat->lbl_status, "Waiting for data");
     lv_obj_set_style_text_color(dat->lbl_status, lv_color_make(200, 200, 200), 0);
     lv_obj_set_style_text_font(dat->lbl_status, &lv_font_montserrat_14, 0);
     lv_obj_align(dat->lbl_status, LV_ALIGN_BOTTOM_MID, 0, -2);
 
     /* Load screen */
-    lv_scr_load(dat->scr[0]);
+    lv_scr_load(dat->scr);
 }

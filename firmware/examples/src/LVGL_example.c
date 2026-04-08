@@ -28,9 +28,7 @@
 #
 ******************************************************************************/
 
-#include "LVGL_example.h" 
-#include "src/core/lv_obj.h"
-#include "src/misc/lv_area.h"
+#include "LVGL_example.h"
 
 // LCD 
 LCD_SetWindowsFunc LCD_SetWindows;

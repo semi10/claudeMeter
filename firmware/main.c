@@ -1,4 +1,4 @@
-#include "LCD_Test.h"  //example
+#include "app.h"
 
 int main(void)
 { 

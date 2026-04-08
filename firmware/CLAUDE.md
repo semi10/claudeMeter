@@ -31,7 +31,7 @@ There are no unit tests — this is hardware-only embedded firmware.
 ### Layer Stack (top to bottom)
 
 ```
-examples/src/LCD_1in14_LVGL_test.c   ← Application: UI screens, widgets, button handlers
+examples/src/app.c                    ← Application: UI screens, widgets, serial input
 examples/src/LVGL_example.c           ← LVGL integration: DMA flush callback, 5ms tick timer
 lib/LCD/LCD_1in14.c                   ← LCD driver: ST7789 commands, window/pixel operations
 lib/Config/DEV_Config.c               ← HAL: GPIO, SPI, I2C, DMA, PWM, ADC abstractions
@@ -40,14 +40,15 @@ Pico SDK / RP2350 hardware
 
 ### Entry Point
 
-`main.c` → `LCD_1in14_test()` (in `examples/src/LCD_1in14_LVGL_test.c`) → init hardware → init LVGL → create widgets → infinite loop calling `lv_task_handler()` every 5ms.
+`main.c` → `LCD_1in14_test()` (in `examples/src/app.c`) → init hardware → init LVGL → create widgets → infinite loop calling `lv_task_handler()` every 5ms.
 
 ### Key Modules
 
 - **`lib/Config/DEV_Config.c/h`** — Hardware abstraction. GPIO, SPI1 (LCD data), I2C0 (sensors), DMA (SPI→LCD), PWM (backlight on GPIO25), ADC. All hardware pin assignments are defined here.
 - **`lib/LCD/LCD_1in14.c/h`** — ST7789 LCD driver. Handles reset, initialization sequence, window region (`SetWindows`), and bulk pixel writes (`Display`, `DisplayWindows`).
 - **`examples/src/LVGL_example.c`** — Bridges LVGL and hardware. `LVGL_Init()` registers the display driver. `disp_flush_cb()` triggers DMA transfers to the LCD; `dma_handler()` signals flush completion to LVGL. A repeating timer fires every 5ms to call `lv_tick_inc()`.
-- **`examples/src/LCD_1in14_LVGL_test.c`** — Application logic. Currently creates 1 LVGL screen (`scr[0]`) with a centered image from `ImageData.c`. The `lvgl_data_struct` has capacity for 4 screens and declares `handle_key_press()`/`switch_to_next_screen()` for button-driven navigation, but these are not yet implemented — the multi-screen and key-handling code is stubbed.
+- **`examples/src/app.c`** — Application logic. Creates a single LVGL screen with dual arc gauges (Session/Weekly) and a status label. Receives usage data via USB serial (`serial_input.c`), updates gauge values and colors, and fades arcs toward background gray after 2 minutes of inactivity.
+- **`examples/src/serial_input.c`** — USB serial input handler. Polls `stdin` for newline-delimited JSON (`{"sp":N,"wp":N,"sr":"...","wr":"..."}`), parses fields, and updates LVGL widgets with usage percentages and reset times.
 - **`lib/lvgl/`** — LVGL v8.1.0 compiled as a static library, configured via `examples/inc/lv_conf.h`.
 
 ### Hardware Pin Mapping
