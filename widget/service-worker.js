@@ -5,6 +5,7 @@
  */
 
 let port = null;
+let lastTabOpenTime = 0;
 
 function connectNative() {
   if (port) return;
@@ -41,7 +42,13 @@ function pollUsage() {
     console.log("ClaudeMeter: found tabs", tabs?.length);
     const tab = tabs?.find((t) => t.url && t.url.startsWith("https://claude.ai"));
     if (!tab) {
+      const now = Date.now();
+      if (now - lastTabOpenTime < 15000) {
+        console.log("ClaudeMeter: skipping tab open, last opened", Math.round((now - lastTabOpenTime) / 1000), "s ago");
+        return;
+      }
       console.log("ClaudeMeter: no claude.ai tab found, opening background tab");
+      lastTabOpenTime = now;
       chrome.tabs.create({
         url: "https://claude.ai/settings/usage",
         active: false,

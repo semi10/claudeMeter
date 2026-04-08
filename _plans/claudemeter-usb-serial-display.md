@@ -137,7 +137,7 @@ On `onInstalled` and `onStartup`: create a `keepalive` alarm (every 1 minute) an
 
 On each `keepalive` alarm tick: reconnect if `port` is null. On each `poll` alarm tick: call `pollUsage()`.
 
-`pollUsage()` queries all tabs for a `claude.ai` URL. If none exists, open `claude.ai/settings/usage` as an inactive background tab. If one exists, reload it to trigger a fresh fetch interception and data post.
+`pollUsage()` queries all tabs for a `claude.ai` URL. If none exists, check `lastTabOpenTime`: if fewer than 15 seconds have elapsed since the last tab was opened, skip (to prevent duplicate tabs when multiple startup triggers fire in quick succession); otherwise record the current time in `lastTabOpenTime` and open `claude.ai/settings/usage` as an inactive background tab. If a tab exists, reload it to trigger a fresh fetch interception and data post.
 
 On `onMessage`: if type is `USAGE_DATA` and `port` is alive, forward the payload via `port.postMessage`. Log all received messages.
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClaudeMeter",
-  "version": "1.3",
+  "version": "1.4",
   "description": "Physical usage meter for Claude Pro",
   "permissions": ["nativeMessaging", "scripting", "storage", "alarms", "tabs"],
   "host_permissions": ["https://claude.ai/*"],
