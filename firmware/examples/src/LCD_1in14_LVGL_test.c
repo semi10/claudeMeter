@@ -36,10 +36,7 @@ static void Widgets_Init(lvgl_data_struct *dat);
 extern bool serial_data_received;
 extern uint32_t serial_last_rx_ms;
 
-/* Fade arc color from blue to background over 2 minutes */
-#define FADE_BLUE_R   0
-#define FADE_BLUE_G   180
-#define FADE_BLUE_B   255
+/* Fade arc color toward background over 2 minutes */
 #define FADE_BG_R     40
 #define FADE_BG_G     40
 #define FADE_BG_B     40
@@ -84,7 +81,7 @@ static void create_gauge_panel(lv_obj_t *parent, lv_coord_t x_offset,
     lv_obj_set_style_arc_width(arc, 8, LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc, 8, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(arc, lv_color_make(40, 40, 40), LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc, lv_color_make(0, 180, 255), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc, lv_color_make(0, 255, 0), LV_PART_INDICATOR);
     lv_obj_align(arc, LV_ALIGN_CENTER, 0, 5);
     *arc_out = arc;
 
@@ -142,20 +139,33 @@ int LCD_1in14_test(void)
 
         uint32_t now = to_ms_since_boot(get_absolute_time());
 
-        /* Update arc fade color every 5 seconds */
+        /* Update arc fade color every 5 seconds: pct color → background gray */
         if (serial_data_received && (now - fade_last_ms >= FADE_INTERVAL_MS)) {
             fade_last_ms = now;
             uint32_t elapsed = now - serial_last_rx_ms;
             if (elapsed > FADE_DURATION_MS) elapsed = FADE_DURATION_MS;
 
-            /* Linear interpolation: blue → background gray */
-            uint8_t r = FADE_BLUE_R + (uint8_t)((elapsed * (FADE_BG_R - FADE_BLUE_R)) / FADE_DURATION_MS);
-            uint8_t g = FADE_BLUE_G - (uint8_t)((elapsed * (FADE_BLUE_G - FADE_BG_G)) / FADE_DURATION_MS);
-            uint8_t b = FADE_BLUE_B - (uint8_t)((elapsed * (FADE_BLUE_B - FADE_BG_B)) / FADE_DURATION_MS);
+            /* Compute base RGB from percentage, then lerp toward bg gray */
+            int sp_val = lv_arc_get_value(dat->arc_session);
+            int wp_val = lv_arc_get_value(dat->arc_weekly);
 
-            lv_color_t fade_color = lv_color_make(r, g, b);
-            lv_obj_set_style_arc_color(dat->arc_session, fade_color, LV_PART_INDICATOR);
-            lv_obj_set_style_arc_color(dat->arc_weekly, fade_color, LV_PART_INDICATOR);
+            /* Session arc base color from percentage */
+            int s_r = (sp_val <= 50) ? (sp_val * 255 / 50) : 255;
+            int s_g = (sp_val <= 50) ? 255 : ((100 - sp_val) * 255 / 50);
+            /* Weekly arc base color from percentage */
+            int w_r = (wp_val <= 50) ? (wp_val * 255 / 50) : 255;
+            int w_g = (wp_val <= 50) ? 255 : ((100 - wp_val) * 255 / 50);
+
+            /* Lerp toward background gray */
+            uint8_t fsr = (uint8_t)(s_r + (int)(elapsed * (FADE_BG_R - s_r)) / (int)FADE_DURATION_MS);
+            uint8_t fsg = (uint8_t)(s_g + (int)(elapsed * (FADE_BG_G - s_g)) / (int)FADE_DURATION_MS);
+            uint8_t fsb = (uint8_t)(elapsed * FADE_BG_B / FADE_DURATION_MS);
+            lv_obj_set_style_arc_color(dat->arc_session, lv_color_make(fsr, fsg, fsb), LV_PART_INDICATOR);
+
+            uint8_t fwr = (uint8_t)(w_r + (int)(elapsed * (FADE_BG_R - w_r)) / (int)FADE_DURATION_MS);
+            uint8_t fwg = (uint8_t)(w_g + (int)(elapsed * (FADE_BG_G - w_g)) / (int)FADE_DURATION_MS);
+            uint8_t fwb = (uint8_t)(elapsed * FADE_BG_B / FADE_DURATION_MS);
+            lv_obj_set_style_arc_color(dat->arc_weekly, lv_color_make(fwr, fwg, fwb), LV_PART_INDICATOR);
         }
 
         /* 2min timeout: reset to initial state and show "Connection lost" */

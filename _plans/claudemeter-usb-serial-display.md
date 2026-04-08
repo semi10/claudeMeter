@@ -33,14 +33,14 @@ The display must run in a 270° flipped landscape orientation (240 px wide × 13
 
 - Divide the screen into two equal panels, each 120×135 px. The Session panel sits at x=0, the Weekly panel at x=120.
 - Each panel contains, top to bottom: a title label ("Session" / "Weekly") at the top center; an arc gauge 80×80 px centered in the panel; a percentage label and a reset-time label.
-- Arc gauges span 270° of travel (background arc from 135° to 45°, going clockwise). Background arc color is dark gray (40, 40, 40). Indicator arc color is bright blue (0, 180, 255). Arc width is 8 px on both parts. The knob is removed and the arc is not clickable. Value range is 0–100.
+- Arc gauges span 270° of travel (background arc from 135° to 45°, going clockwise). Background arc color is dark gray (40, 40, 40). Indicator arc color is percentage-based: green (0, 255, 0) at 0%, interpolating to yellow (255, 255, 0) at 50%, then to red (255, 0, 0) at 100%. Initial indicator color is green (0% value). Arc width is 8 px on both parts. The knob is removed and the arc is not clickable. Value range is 0–100.
 - The percentage label is a **child of the arc object** (not the panel), aligned to the arc's center. This ensures the entire text including the `%` sign stays visually centered regardless of digit count. Initial text is `"---"`. Font: montserrat 16.
 - The reset-time label is anchored to the bottom center of its panel with a small margin. Initial text is empty. Font: montserrat 14, light gray color.
 - The status label (`lbl_status`) is a child of the screen, anchored to `BOTTOM_MID` with a small bottom margin — the same vertical position as the reset-time labels. Initial text: `"Waiting for data"`. Font: montserrat 14. This label is visible at boot and must cover both panels when shown.
 
 **Main loop** — After each `lv_task_handler()` call, run `serial_poll()`, then evaluate two timed conditions using the current millisecond timestamp from `to_ms_since_boot()`:
 
-1. **Heartbeat fade** — Once data has ever been received, every 5 seconds recalculate the arc indicator color. Linearly interpolate from full blue (0, 180, 255) toward background gray (40, 40, 40) based on the fraction of 120 seconds that has elapsed since the last received packet. Apply the resulting color to both arc indicators. At exactly 120 s the color equals background gray, making the gauges invisible against their track.
+1. **Heartbeat fade** — Once data has ever been received, every 5 seconds recalculate each arc's indicator color independently. Compute the base color from the arc's current percentage value using the green→yellow→red gradient, then linearly interpolate toward background gray (40, 40, 40) based on the fraction of 120 seconds that has elapsed since the last received packet. At exactly 120 s the color equals background gray, making the gauges invisible against their track.
 
 2. **Timeout reset** — Once data has ever been received and 120 seconds have elapsed since the last packet: reset both arc values to 0, set both percentage labels back to `"---"`, clear both reset-time labels, hide the reset-time labels, show the status label with text `"Connection lost"`, and clear the `serial_data_received` flag to prevent this block from firing repeatedly.
 
@@ -55,8 +55,10 @@ The loop delay is 5 ms.
 - Set percentage labels to `"N%"` format.
 - Set reset-time labels and make them visible (clear `LV_OBJ_FLAG_HIDDEN`).
 - Hide the status label.
-- Reset both arc indicator colors to full blue (0, 180, 255) — this is the "heartbeat pulse" that snaps the color back on every new packet.
+- Set each arc's indicator color based on its percentage using `pct_to_color()` — a green→yellow→red gradient. This is the "heartbeat pulse" that snaps the color back on every new packet.
 - Record the current timestamp in `serial_last_rx_ms` and set `serial_data_received = true`.
+
+`pct_to_color()` is a `static inline` function declared in the header. It maps a 0–100 percentage to a green→yellow→red color: from 0–50% red ramps 0→255 while green stays 255; from 50–100% red stays 255 while green ramps 255→0. Blue is always 0.
 
 `serial_last_rx_ms` and `serial_data_received` are module-level globals, declared `extern` in the test file. No `CMakeLists.txt` changes are needed in `examples/` because `aux_source_directory` picks up `serial_input.c` automatically.
 
@@ -167,7 +169,7 @@ At service worker startup: call `connectNative()` immediately, then call `pollUs
 
 | Layer | Test |
 |-------|------|
-| Firmware alone | Send `{"sp":50,"sr":"37m","wp":25,"wr":"Thu 10:00"}` + newline via PuTTY at 115200; arcs update and colors snap to blue |
+| Firmware alone | Send `{"sp":50,"sr":"37m","wp":25,"wr":"Thu 10:00"}` + newline via PuTTY at 115200; session arc turns yellow (50%), weekly arc turns green-yellow (25%) |
 | Heartbeat fade | After the above, send no further data; arcs should visually dim to gray over 2 minutes |
 | Timeout | After 2 minutes of silence, arcs reset to 0, labels show `"---"`, reset times hidden, "Connection lost" appears at bottom |
 | Boot | Power cycle board; "Waiting for data" appears at bottom, arcs at 0 with `"---"` labels |
