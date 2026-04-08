@@ -36,6 +36,16 @@ static void Widgets_Init(lvgl_data_struct *dat);
 extern bool serial_data_received;
 extern uint32_t serial_last_rx_ms;
 
+/* Fade arc color from blue to background over 2 minutes */
+#define FADE_BLUE_R   0
+#define FADE_BLUE_G   180
+#define FADE_BLUE_B   255
+#define FADE_BG_R     40
+#define FADE_BG_G     40
+#define FADE_BG_B     40
+#define FADE_DURATION_MS  120000
+#define FADE_INTERVAL_MS  5000
+
 /********************************************************************************
 function:   Create a single arc gauge panel (landscape layout)
 parameter:  parent - parent object, x_offset - horizontal position
@@ -78,12 +88,12 @@ static void create_gauge_panel(lv_obj_t *parent, lv_coord_t x_offset,
     lv_obj_align(arc, LV_ALIGN_CENTER, 0, 5);
     *arc_out = arc;
 
-    /* Percentage label centered on arc */
-    lv_obj_t *lbl_pct = lv_label_create(panel);
-    lv_label_set_text(lbl_pct, "--");
+    /* Percentage label centered on arc (child of arc for true centering) */
+    lv_obj_t *lbl_pct = lv_label_create(arc);
+    lv_label_set_text(lbl_pct, "---");
     lv_obj_set_style_text_color(lbl_pct, lv_color_white(), 0);
     lv_obj_set_style_text_font(lbl_pct, &lv_font_montserrat_16, 0);
-    lv_obj_align_to(lbl_pct, arc, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(lbl_pct, LV_ALIGN_CENTER, 0, 0);
     *pct_out = lbl_pct;
 
     /* Reset time label below arc */
@@ -123,16 +133,45 @@ int LCD_1in14_test(void)
     LVGL_Init();
     Widgets_Init(dat);
 
+    uint32_t fade_last_ms = 0;
+
     while(1)
     {
         lv_task_handler();
         serial_poll(dat);
 
-        /* 2min timeout: show "Connection lost" if no data received recently */
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+
+        /* Update arc fade color every 5 seconds */
+        if (serial_data_received && (now - fade_last_ms >= FADE_INTERVAL_MS)) {
+            fade_last_ms = now;
+            uint32_t elapsed = now - serial_last_rx_ms;
+            if (elapsed > FADE_DURATION_MS) elapsed = FADE_DURATION_MS;
+
+            /* Linear interpolation: blue → background gray */
+            uint8_t r = FADE_BLUE_R + (uint8_t)((elapsed * (FADE_BG_R - FADE_BLUE_R)) / FADE_DURATION_MS);
+            uint8_t g = FADE_BLUE_G - (uint8_t)((elapsed * (FADE_BLUE_G - FADE_BG_G)) / FADE_DURATION_MS);
+            uint8_t b = FADE_BLUE_B - (uint8_t)((elapsed * (FADE_BLUE_B - FADE_BG_B)) / FADE_DURATION_MS);
+
+            lv_color_t fade_color = lv_color_make(r, g, b);
+            lv_obj_set_style_arc_color(dat->arc_session, fade_color, LV_PART_INDICATOR);
+            lv_obj_set_style_arc_color(dat->arc_weekly, fade_color, LV_PART_INDICATOR);
+        }
+
+        /* 2min timeout: reset to initial state and show "Connection lost" */
         if (serial_data_received &&
-            (to_ms_since_boot(get_absolute_time()) - serial_last_rx_ms > 120000)) {
+            (now - serial_last_rx_ms > FADE_DURATION_MS)) {
+            lv_arc_set_value(dat->arc_session, 0);
+            lv_arc_set_value(dat->arc_weekly, 0);
+            lv_label_set_text(dat->lbl_sp, "---");
+            lv_label_set_text(dat->lbl_wp, "---");
+            lv_label_set_text(dat->lbl_sr, "");
+            lv_label_set_text(dat->lbl_wr, "");
+            lv_obj_add_flag(dat->lbl_sr, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(dat->lbl_wr, LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(dat->lbl_status, "Connection lost");
             lv_obj_clear_flag(dat->lbl_status, LV_OBJ_FLAG_HIDDEN);
+            serial_data_received = false;
         }
 
         DEV_Delay_ms(5);
@@ -160,12 +199,12 @@ static void Widgets_Init(lvgl_data_struct *dat)
     create_gauge_panel(dat->scr[0], 120,
                        &dat->arc_weekly, &dat->lbl_wp, &dat->lbl_wr, "Weekly");
 
-    /* Status overlay label - centered on screen */
+    /* Status label at bottom of screen (same level as reset time labels) */
     dat->lbl_status = lv_label_create(dat->scr[0]);
     lv_label_set_text(dat->lbl_status, "Waiting for data");
     lv_obj_set_style_text_color(dat->lbl_status, lv_color_make(200, 200, 200), 0);
     lv_obj_set_style_text_font(dat->lbl_status, &lv_font_montserrat_14, 0);
-    lv_obj_align(dat->lbl_status, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(dat->lbl_status, LV_ALIGN_BOTTOM_MID, 0, -2);
 
     /* Load screen */
     lv_scr_load(dat->scr[0]);

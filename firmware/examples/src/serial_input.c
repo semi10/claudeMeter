@@ -52,8 +52,15 @@ static void parse_and_update(const char *json, int len, lvgl_data_struct *dat) {
 
     lv_label_set_text(dat->lbl_sr, sr);
     lv_label_set_text(dat->lbl_wr, wr);
+    lv_obj_clear_flag(dat->lbl_sr, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(dat->lbl_wr, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_add_flag(dat->lbl_status, LV_OBJ_FLAG_HIDDEN);
+
+    /* Reset arc colors to full blue on fresh data */
+    lv_color_t blue = lv_color_make(0, 180, 255);
+    lv_obj_set_style_arc_color(dat->arc_session, blue, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(dat->arc_weekly, blue, LV_PART_INDICATOR);
 
     serial_last_rx_ms = to_ms_since_boot(get_absolute_time());
     serial_data_received = true;
